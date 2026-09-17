@@ -1,0 +1,21 @@
+[project]
+name = "rag_against_the_machine"
+version = "0.1.0"
+description = "Indexing - retrieving - augmenting - generating"
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy>=1.26",
+    "pydantic>=2.0",
+    "fire",
+    "tqdm",
+    "torch",
+    "transformers",
+    "bm25s",
+]
+
+[dependency-groups]
+dev = [
+    "flake8>=7.3.0",
+    "mypy>=2.3.1",
+]
