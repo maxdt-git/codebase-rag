@@ -63,7 +63,7 @@ def build_index(
     texts, metas = build_corpus(files, max_chunk_size)
 
     corpus_tokens = bm25s.tokenize(texts, stopwords="en")
-    retriever = bm25s.BM25(corpus=metas)
+    retriever = bm25s.BM25(k1=1.2, b=0.5, corpus=metas)
     retriever.index(corpus_tokens)
 
     processed_dir.mkdir(parents=True, exist_ok=True)
