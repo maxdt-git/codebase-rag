@@ -5,9 +5,11 @@ def line_offsets(source: str) -> list[int]:
     """
     Get the number of each line of source
     """
+    # keepends so each line's length already includes its newline
     lines: list[str] = source.splitlines(keepends=True)
     offsets: list[int] = []
     count = 0
+    # each line starts right where the previous one ended
     for line in lines:
         offsets.append(count)
         count += len(line)
@@ -24,6 +26,7 @@ def split_raw(
     """
     chunks: list[tuple[int, int]] = []
     pos = start
+    # slice into consecutive tranches, capped at end, no overlap
     while pos < end:
         chunk_end = min(pos + max_chunk_size, end)
         chunks.append((pos, chunk_end))
@@ -74,6 +77,7 @@ def chunk_python(
     offsets = line_offsets(source)
     chunks: list[tuple[int, int]] = []
 
+    # only top-level functions/classes are chunked, one call each
     for node in tree.body:
         if isinstance(
                 node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):

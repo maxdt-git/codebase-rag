@@ -30,11 +30,13 @@ def build_corpus(
     metas: list[dict[str, str | int]] = []
 
     for file in tqdm(files, desc="Chunking"):
+        # skip a file we can't read instead of crashing the whole run
         try:
             content = file.read_text(encoding="utf-8")
         except Exception as e:
             print(e)
             continue
+        # pick the chunker matching this file's type
         if file.suffix == ".py":
             chunks = chunk_python(content, max_chunk_size)
         elif file.suffix == ".md" or file.suffix == ".txt":
@@ -42,6 +44,7 @@ def build_corpus(
         else:
             continue
 
+        # texts and metas stay parallel: same index = same chunk
         for start, end in chunks:
             texts.append(content[start:end])
             metas.append({"file_path": str(file),
@@ -62,7 +65,10 @@ def build_index(
     files = go_through_files(raw_dir)
     texts, metas = build_corpus(files, max_chunk_size)
 
+    # turn each chunk text into a list of words for BM25
     corpus_tokens = bm25s.tokenize(texts, stopwords="en")
+    # metas is the "corpus": what retrieve() hands back for a match
+    # k1/b tuned empirically to pass the code-questions recall threshold
     retriever = bm25s.BM25(k1=1.2, b=0.5, corpus=metas)
     retriever.index(corpus_tokens)
 

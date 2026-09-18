@@ -21,10 +21,12 @@ def search(
     """
     Retrieve the top-k sources for a single query
     """
+    # tokenize the question the same way the chunks were tokenized
     query_tokens = bm25s.tokenize([query], stopwords="en", show_progress=False)
-    documents, scores = retriever.retrieve(
+    documents, _ = retriever.retrieve(
         query_tokens, k=k, show_progress=False)
 
+    # documents[0]: results for our single query, already MinimalSource dicts
     return [MinimalSource(**doc) for doc in documents[0]]
 
 
@@ -41,6 +43,7 @@ def search_data(
     dataset = RagDataset.model_validate(raw_data)
 
     minimal_results: list[MinimalSearchResults] = []
+    # search() once per question, question_id/question carried over as-is
     for question in tqdm(dataset.rag_questions, desc="Searching"):
         sources = search(question.question, retriever, k)
         minimal_results.append(
@@ -53,13 +56,12 @@ def search_data(
     return StudentSearchResults(search_results=minimal_results, k=k)
 
 
-# if __name__ == "__main__":
-#     retriever = load_retriever(Path("data/processed"))
-#     results = search("How to configure the OpenAI server?", retriever, k=5)
-#     for source in results:
-#         print(source)
-#     test = search_data(
-#         Path(
-# "data/datasets/UnansweredQuestions/dataset_docs_public.json"),
-# retriever, k=5)
-#     print(test.search_results[0])
+if __name__ == "__main__":
+    retriever = load_retriever(Path("data/processed"))
+    results = search("How to configure the OpenAI server?", retriever, k=5)
+    for source in results:
+        print(source)
+    dataset_path = Path(
+        "data/datasets/UnansweredQuestions/dataset_docs_public.json")
+    test = search_data(dataset_path, retriever, k=5)
+    print(test.search_results[0])

@@ -11,7 +11,9 @@ def iou(
     """
     Compute the intersection over union of two character range
     """
+    # overlap between the two ranges, 0 if they don't touch at all
     intersection = max(0, min(b1, b2) - max(a1, a2))
+    # total length covered by both ranges combined
     union = (b1 - a1) + (b2 - a2) - intersection
 
     if union > 0:
@@ -27,6 +29,7 @@ def build_ground_truth(
     Map each answered question's id to its ground-truth sources
     """
     results: dict[str, list[MinimalSource]] = {}
+    # only AnsweredQuestion has sources, UnansweredQuestion is skipped
     for question in dataset.rag_questions:
         if isinstance(question, AnsweredQuestion):
             results[question.question_id] = question.sources
@@ -45,11 +48,13 @@ def compute_recall(
     count = 0
 
     for result in student_results.search_results:
+        # skip a question we have no ground truth to compare against
         true_sources = ground_truth.get(result.question_id)
         if not true_sources:
             continue
 
         found = 0
+        # a true source counts as found if any retrieved source overlaps it
         for true_source in true_sources:
             hit = False
             for r in result.retrieved_sources:
@@ -67,6 +72,7 @@ def compute_recall(
             if hit:
                 found += 1
 
+        # recall for this question: fraction of its sources we found
         total_recall += found / len(true_sources)
         count += 1
 
