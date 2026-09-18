@@ -53,11 +53,13 @@ def search_data(
     return StudentSearchResults(search_results=minimal_results, k=k)
 
 
-if __name__ == "__main__":
-    retriever = load_retriever(Path("data/processed"))
-    results = search("How to configure the OpenAI server?", retriever, k=5)
-    for source in results:
-        print(source)
-    test = search_dataset(
-        Path("data/datasets/UnansweredQuestions/dataset_docs_public.json"), retriever, k=5)
-    print(test.search_results[0])
+# if __name__ == "__main__":
+#     retriever = load_retriever(Path("data/processed"))
+#     results = search("How to configure the OpenAI server?", retriever, k=5)
+#     for source in results:
+#         print(source)
+#     test = search_data(
+#         Path(
+# "data/datasets/UnansweredQuestions/dataset_docs_public.json"),
+# retriever, k=5)
+#     print(test.search_results[0])

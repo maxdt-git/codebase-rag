@@ -4,17 +4,26 @@ from typing import List
 
 
 class MinimalSource(BaseModel):
+    """
+    A single source location: a file path and a character range
+    """
     file_path: str
     first_character_index: int
     last_character_index: int
 
 
 class UnansweredQuestion(BaseModel):
+    """
+    A question without its answer or sources
+    """
     question_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     question: str
 
 
 class AnsweredQuestion(UnansweredQuestion):
+    """
+    A question with its ground-truth sources and answer
+    """
     sources: List[MinimalSource]
     answer: str
 
