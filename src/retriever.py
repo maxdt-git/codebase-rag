@@ -28,7 +28,7 @@ def search(
     return [MinimalSource(**doc) for doc in documents[0]]
 
 
-def search_dataset(
+def search_data(
         dataset_path: Path,
         retriever: bm25s.BM25,
         k: int
