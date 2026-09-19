@@ -21,6 +21,8 @@ class RagCLI:
         """
         Ingest data/raw/ and build the index under data/processed/
         """
+        if not isinstance(max_chunk_size, int) or max_chunk_size <= 0:
+            raise ValueError("max_chunk_size must be a positive integer")
         build_index(RAW_DIR, PROCESSED_DIR, max_chunk_size)
 
     def search_dataset(
@@ -32,6 +34,8 @@ class RagCLI:
         """
         Run search over a dataset and save a StudentSearchResults JSON
         """
+        if not isinstance(k, int) or k < 0:
+            raise ValueError("k must be a non negative integer")
         retriever = load_retriever(PROCESSED_DIR)
         results = search_data(Path(dataset_path), retriever, k)
 
@@ -69,8 +73,14 @@ class RagCLI:
         """
         Return the top-k sources for a query
         """
+        query = str(query)
+        if not isinstance(k, int) or k < 0:
+            raise ValueError("k must be a non negative integer")
+
         retriever = load_retriever(PROCESSED_DIR)
         results = search_single(query, retriever, k)
+        if not results:
+            print("No result found")
         for source in results:
             print(source)
 
@@ -82,6 +92,7 @@ class RagCLI:
         """
         Answer a single query with retreive
         """
+        query = str(query)
         retriever = load_retriever(PROCESSED_DIR)
         sources = search_single(query, retriever, k)
         tokenizer, model = load_model()
@@ -112,4 +123,7 @@ class RagCLI:
 
 
 if __name__ == "__main__":
-    fire.Fire(RagCLI)
+    try:
+        fire.Fire(RagCLI)
+    except Exception as e:
+        print(f"Error: {e}")

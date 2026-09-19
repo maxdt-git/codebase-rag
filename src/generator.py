@@ -78,7 +78,7 @@ def answer_dataset(
     Generate an answer for every question of a StudentSearchResults
     """
     minimal_answers: list[MinimalAnswer] = []
-    # reuse the sources search_dataset already found, no re-search here
+    # reuse the sources search_dataset already found
     for result in tqdm(student_results.search_results, desc="Answering"):
         answer = generate_answer(
             result.question, result.retrieved_sources, tokenizer, model

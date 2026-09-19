@@ -23,11 +23,10 @@ def search(
     """
     # tokenize the question the same way the chunks were tokenized
     query_tokens = bm25s.tokenize([query], stopwords="en", show_progress=False)
-    documents, _ = retriever.retrieve(
+    documents, scores = retriever.retrieve(
         query_tokens, k=k, show_progress=False)
-
     # documents[0]: results for our single query, already MinimalSource dicts
-    return [MinimalSource(**doc) for doc in documents[0]]
+    return [MinimalSource(**doc) for doc, score in zip(documents[0], scores[0]) if score > 0]
 
 
 def search_data(
