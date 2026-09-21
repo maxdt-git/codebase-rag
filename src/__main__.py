@@ -9,34 +9,41 @@ from src.generator import load_model, generate_answer
 from src.generator import answer_dataset as generate_dataset_answers
 
 
-RAW_DIR = Path("data/raw")
-PROCESSED_DIR = Path("data/processed")
+RAW_DIR = "data/raw"
+PROCESSED_DIR = "data/processed"
 
 
 class RagCLI:
+    """
+    Command-line interface of the RAG pipeline
+    """
     def index(
             self,
-            max_chunk_size: int = 2000
+            max_chunk_size: int = 2000,
+            raw_dir: str = RAW_DIR,
+            processed_dir: str = PROCESSED_DIR
     ) -> None:
         """
         Ingest data/raw/ and build the index under data/processed/
         """
-        if not isinstance(max_chunk_size, int) or max_chunk_size <= 0:
-            raise ValueError("max_chunk_size must be a positive integer")
-        build_index(RAW_DIR, PROCESSED_DIR, max_chunk_size)
+        if not isinstance(max_chunk_size, int) \
+                or not 1 <= max_chunk_size <= 2000:
+            raise ValueError("max_chunk_size must be between 1 and 2000")
+        build_index(Path(raw_dir), Path(processed_dir), max_chunk_size)
 
     def search_dataset(
             self,
             dataset_path: str,
             k: int = 10,
-            save_directory: str = "data/output/search_results"
+            save_directory: str = "data/output/search_results",
+            processed_dir: str = PROCESSED_DIR
     ) -> None:
         """
         Run search over a dataset and save a StudentSearchResults JSON
         """
         if not isinstance(k, int) or k < 0:
             raise ValueError("k must be a non negative integer")
-        retriever = load_retriever(PROCESSED_DIR)
+        retriever = load_retriever(Path(processed_dir))
         results = search_data(Path(dataset_path), retriever, k)
 
         save_dir = Path(save_directory)
@@ -68,7 +75,8 @@ class RagCLI:
     def search(
             self,
             query: str,
-            k: int = 10
+            k: int = 10,
+            processed_dir: str = PROCESSED_DIR
     ) -> None:
         """
         Return the top-k sources for a query
@@ -77,7 +85,7 @@ class RagCLI:
         if not isinstance(k, int) or k < 0:
             raise ValueError("k must be a non negative integer")
 
-        retriever = load_retriever(PROCESSED_DIR)
+        retriever = load_retriever(Path(processed_dir))
         results = search_single(query, retriever, k)
         if not results:
             print("No result found")
@@ -87,13 +95,15 @@ class RagCLI:
     def answer(
             self,
             query: str,
-            k: int = 10
+            k: int = 10,
+            processed_dir: str = PROCESSED_DIR
     ) -> None:
         """
         Answer a single query with retreive
         """
         query = str(query)
-        retriever = load_retriever(PROCESSED_DIR)
+        retriever = load_retriever(Path(processed_dir))
+        k = min(k, retriever.scores["num_docs"])
         sources = search_single(query, retriever, k)
         tokenizer, model = load_model()
         print(generate_answer(query, sources, tokenizer, model))

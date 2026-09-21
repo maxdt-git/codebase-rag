@@ -13,9 +13,11 @@ debug:
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 
 fclean: clean
 	rm -rf .venv
+	rm -rf data/processed data/output
 
 lint:
 	uv run flake8 src
@@ -61,5 +63,26 @@ answer-dataset:
 	--save_directory $(ANSWER_DIR)
 
 
+MOULINETTE = ./moulinette_pkg/moulinette-fedora
+DOCS = dataset_docs_public.json
+CODE = dataset_code_public.json
+
+
+moulinette-docs:
+	$(MAKE) search-dataset DATASET=$(DOCS) K=5
+	$(MOULINETTE) evaluate_student_search_results \
+	$(SEARCH_DIR)/$(DOCS) data/datasets/AnsweredQuestions/$(DOCS) \
+	--k 5 --max_context_length 2000 --threshold 0.80
+
+moulinette-code:
+	$(MAKE) search-dataset DATASET=$(CODE) K=5
+	$(MOULINETTE) evaluate_student_search_results \
+	$(SEARCH_DIR)/$(CODE) data/datasets/AnsweredQuestions/$(CODE) \
+	--k 5 --max_context_length 2000 --threshold 0.50
+
+moulinette: moulinette-docs moulinette-code
+
+
 .PHONY: install run debug clean fclean lint lint-strict
 .PHONY: index search search-dataset evaluate answer answer-dataset
+.PHONY: moulinette moulinette-docs moulinette-code
