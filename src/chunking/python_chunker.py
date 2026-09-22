@@ -38,8 +38,9 @@ def split_raw(
 def chunk_node(
         node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
         offsets: list[int],
-        max_chunk_size: int
-) -> list[tuple[int, int]]:
+        max_chunk_size: int,
+        class_name: str | None = None
+) -> list[tuple[int, int, str]]:
     """
     Check the chunk size and returns the appropriate value
     """
@@ -48,34 +49,36 @@ def chunk_node(
 
     start = offsets[node.lineno - 1] + node.col_offset
     end = offsets[node.end_lineno - 1] + node.end_col_offset
+    context = f"class {class_name}\n" if class_name else ""
 
     # if good size we return start and end
     if end - start <= max_chunk_size:
-        return [(start, end)]
+        return [(start, end, context)]
 
     # if its a class, dont break it and take the func one by one
     if isinstance(node, ast.ClassDef):
-        result: list[tuple[int, int]] = []
+        result: list[tuple[int, int, str]] = []
         for res in node.body:
             if isinstance(res, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                result.extend(chunk_node(res, offsets, max_chunk_size))
+                result.extend(chunk_node(
+                    res, offsets, max_chunk_size, node.name))
 
         return result
 
     # if method too big, manual chunk
-    return split_raw(start, end, max_chunk_size)
+    return [(s, e, context) for s, e in split_raw(start, end, max_chunk_size)]
 
 
 def chunk_python(
         source: str,
         max_chunk_size: int = 2000
-) -> list[tuple[int, int]]:
+) -> list[tuple[int, int, str]]:
     """
     Create a list of chunks
     """
     tree = ast.parse(source)
     offsets = line_offsets(source)
-    chunks: list[tuple[int, int]] = []
+    chunks: list[tuple[int, int, str]] = []
 
     # only top-level functions/classes are chunked, one call each
     for node in tree.body:
@@ -99,5 +102,5 @@ def chunk_python(
 #         "        return \"hi\"\n"
 #     )
 #     chunks = chunk_python(example)
-#     for start, end in chunks:
+#     for start, end, context in chunks:
 #         print(repr(example[start:end]))

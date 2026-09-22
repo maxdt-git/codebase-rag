@@ -3,6 +3,7 @@ from src.chunking.markdown_chunker import chunk_markdown
 from src.chunking.python_chunker import chunk_python
 from tqdm import tqdm
 import bm25s
+import re
 
 
 def go_through_files(raw_dir: Path) -> list[Path]:
@@ -17,6 +18,14 @@ def go_through_files(raw_dir: Path) -> list[Path]:
                 all_files_path.append(file)
 
     return sorted(all_files_path)
+
+
+def filename_context(file: Path) -> str:
+    """
+    Take the filename and separates it into words
+    """
+    words = re.split(r'[_\-]+', file.stem)
+    return " ".join(w for w in words if w)
 
 
 def build_corpus(
@@ -44,9 +53,11 @@ def build_corpus(
         else:
             continue
 
+        file_context = filename_context(file) + "\n"
+
         # texts and metas stay parallel: same index = same chunk
-        for start, end in chunks:
-            texts.append(content[start:end])
+        for start, end, context in chunks:
+            texts.append(file_context + context + content[start:end])
             metas.append({"file_path": str(file),
                           "first_character_index": start,
                           "last_character_index": end})
@@ -69,7 +80,7 @@ def build_index(
     corpus_tokens = bm25s.tokenize(texts, stopwords="en")
     # metas is the "corpus": what retrieve() hands back for a match
     # k1/b tuned to pass the code-questions
-    retriever = bm25s.BM25(k1=1.2, b=0.5, corpus=metas)
+    retriever = bm25s.BM25(k1=1.5, b=0.5, corpus=metas)
     retriever.index(corpus_tokens)
 
     processed_dir.mkdir(parents=True, exist_ok=True)

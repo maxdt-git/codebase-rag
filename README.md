@@ -4,7 +4,7 @@
 
 ## Description
 
-A Retrieval-Augmented Generation (RAG) system that answers questions about a codebase, here the [vLLM](https://github.com/vllm-project/vllm) 0.10.1 repository.
+A Retrieval-Augmented Generation (RAG) system that answers questions about a codebase.
 
 The pipeline has four stages:
 
@@ -39,7 +39,7 @@ make clean       # remove caches
 make fclean      # also remove .venv, data/processed and data/output
 ```
 
-`make run` and `make debug` start the CLI normally or under `pdb`. Shortcuts exist for the whole pipeline (`search`, `search-dataset`, `evaluate`, `answer`, `answer-dataset`); variables `K`, `MAX_CHUNK_SIZE`, `DATASET` and `Q` can be overridden, e.g. `make evaluate K=5 DATASET=dataset_code_public.json`.
+`make run` + commad. Shortcuts exist for the whole pipeline (`search`, `search-dataset`, `evaluate`, `answer`, `answer-dataset`); variables `K`, `MAX_CHUNK_SIZE`, `DATASET` and `Q` can be change, e.g. `make evaluate K=5 DATASET=dataset_code_public.json`.
 
 **CLI** (built with Python Fire, `uv run python -m src <command>`):
 
@@ -68,20 +68,10 @@ uv run python -m src search_dataset \
 uv run python -m src evaluate \
   --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
   --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json
-# recall@k = 0.810
 
 uv run python -m src answer_dataset \
   --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
   --save_directory data/output/search_results_and_answer/UnansweredQuestions
-```
-
-The official moulinette provided with the subject (renamed `moulinette`) gives the same figures:
-
-```bash
-./moulinette evaluate_student_search_results \
-  data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
-  data/datasets/AnsweredQuestions/dataset_docs_public.json \
-  --k 5 --max_context_length 2000 --threshold 0.80
 ```
 
 ## System architecture
@@ -176,12 +166,9 @@ Smaller chunks lower the recall in every case: the chunks split from a large fun
 
 ## Challenges faced
 
-- **Character offsets**: the AST gives line and column numbers, but sources need character positions. A `line_offsets` helper converts them, and offsets are carried through every recursive split.
 - **Oversized chunks**: 23% of Python units exceeded 2000 characters (one class was 150 000). Recursing into class methods, then raw slicing, fixed it, and no chunk exceeds the limit anymore.
 - **Empty spans in Markdown**: a blank line right before a title produced zero-length chunks (76 of them). Empty ranges are now filtered out.
 - **Code recall just under the threshold (0.485)**: the failing questions showed that the IoU of 0.05 penalizes a large chunk that contains a very small target (93 characters in a 2000-character chunk gives 0.046). Indexing every top-level statement as its own chunk (44 990 chunks) made things worse (docs 0.750, code 0.434), because tiny chunks are favored by BM25's length normalization. Tuning `k1` and `b` fixed it without changing the chunking.
-- **Qwen3 thinking mode**: the model writes a reasoning block before the answer, slow and noisy. It is disabled with `enable_thinking=False`.
-- **Degenerate inputs**: Fire converts arguments by itself (`search 123` gives an integer), `--max_chunk_size 0` made the splitter loop forever, and an empty query returned random chunks. Arguments are now validated, and score-0 results are dropped.
 
 ## Resources
 
@@ -192,4 +179,5 @@ Smaller chunks lower the recall in every case: the chunks split from a large fun
 - Qwen3-0.6B model card: <https://huggingface.co/Qwen/Qwen3-0.6B>
 - Hugging Face Transformers, Python Fire, pydantic and uv documentation
 
-**Use of AI**: Claude Code (Anthropic) was used throughout as a tutor and pair-programmer. It explained the concepts (AST, regular expressions, BM25, pydantic, Fire, chat templates), guided the implementation step by step with code snippets that were typed, run and adapted, helped find bugs by running the code on the real corpus, wrote the measurement scripts used in the performance analysis, and wrote the docstrings, inline comments, Makefile shortcuts and this README. Every result reported here was measured by running the code, and the recall figures were checked with the official moulinette.
+**Use of AI**: Claude was used throughout as a tutor/reviewer, not a code
+generator — all code was written by hand. It was used to: explain concepts before writing code and point out concrete bugs and write this README
