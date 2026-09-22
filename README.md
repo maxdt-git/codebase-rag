@@ -45,12 +45,14 @@ make fclean      # also remove .venv, data/processed and data/output
 
 | Command | Options | Effect |
 |---|---|---|
-| `index` | `--max_chunk_size` (1 to 2000, default 2000) | Index `data/raw/` into `data/processed/` |
-| `search <query>` | `--k` | Print the top-k sources of one query |
-| `search_dataset` | `--dataset_path --k --save_directory` | Search a whole dataset, write a `StudentSearchResults` JSON |
-| `answer <query>` | `--k` | Search, then answer one query |
+| `index` | `--max_chunk_size` (1 to 2000, default 2000), `--raw_dir` (default `data/raw`), `--processed_dir` (default `data/processed`) | Index `raw_dir` into `processed_dir` |
+| `search <query>` | `--k`, `--processed_dir` | Print the top-k sources of one query |
+| `search_dataset` | `--dataset_path --k --save_directory --processed_dir` | Search a whole dataset, write a `StudentSearchResults` JSON |
+| `answer <query>` | `--k`, `--processed_dir` | Search, then answer one query |
 | `answer_dataset` | `--student_search_results_path --save_directory` | Answer every question of a search-results file, write a `StudentSearchResultsAndAnswer` JSON |
 | `evaluate` | `--student_search_results_path --dataset_path` | Print recall@k against a ground-truth dataset |
+
+`--raw_dir` should stay a relative path: it is embedded verbatim in every `file_path` written to the index, and the moulinette compares that path as text.
 
 Invalid input (empty query, `k=0`, invalid `k` or `max_chunk_size`, missing file, malformed JSON) prints an `Error: ...` message or `No result found` instead of a traceback.
 
@@ -101,21 +103,23 @@ Each command is a separate program run: they only communicate through files on d
 
 ## Chunking strategy
 
-Every chunk is a character range `[start, end)` of the original file, never longer than `--max_chunk_size`. Two strategies are used, chosen by file extension.
+Both chunkers (`chunk_python`, `chunk_markdown`) return a list of `(start, end, context)` triples for a file's content. `start`/`end` are a character range `[start, end)` of the original file, never longer than `--max_chunk_size`; this is the only part saved to the index, as the `file_path` + character range of a `MinimalSource`. `context` is extra text prepended only to the copy of the chunk that gets indexed and tokenized for BM25 — it is never shown to the model and never changes `start`/`end`. Two strategies produce these triples, chosen by file extension.
 
-**Python (`.py`)**: the file is parsed with `ast`, and each top-level function or class is one chunk, so a signature stays with its docstring and body. Line/column positions from the AST are converted to character offsets. If a unit is too big:
-- a class is split into its methods (recursively);
-- a function or method that is still too big is cut into consecutive slices of `max_chunk_size` characters (no overlap).
+**Python (`.py`)**: the file is parsed with `ast`, and each top-level function or class is one chunk, so a signature stays with its docstring and body (`context` is empty). Line/column positions from the AST are converted to character offsets. If a unit is too big:
+- a class is split into its methods (recursively), each carrying the class name as `context`, so a method chunk still matches a question naming its class;
+- a function or method that is still too big is cut into consecutive slices of `max_chunk_size` characters (no overlap), `context` carried over unchanged.
 
-**Markdown and text (`.md`, `.txt`)**: the file is split at title lines (`#` to `######`). A section that is too big is split into paragraphs (blank-line separated), and a paragraph that is still too big is cut into raw slices. A file without titles, such as `CMakeLists.txt`, is one section.
+**Markdown and text (`.md`, `.txt`)**: the file is split at title lines (`#` to `######`). A section that is too big is split into paragraphs (blank-line separated), each one after the first carrying its section's title as `context` (the first paragraph already starts with the title text itself). A paragraph that is still too big is cut into raw slices. A file without titles, such as `CMakeLists.txt`, is one section.
 
-Result: 1965 files give 21 973 chunks, none longer than 2000 characters.
+On top of this, `indexer.py` prepends one more piece of `context` to every chunk regardless of type: the words of the file name (`lora_resolver.py` → `lora resolver`).
+
+Result: 1969 files give 21 989 chunks, none longer than 2000 characters.
 
 ## Retrieval method
 
 - **Algorithm**: BM25 (`bm25s` library), one "document" per chunk. Chunk and query texts are lowercased, split into words and stripped of English stop words.
 - **Ranking**: `retrieve` scores every chunk and returns the top-k. Chunks with a score of 0 (no word in common with the question) are dropped, so an empty or nonsensical query returns nothing instead of random chunks. `k` is capped to the number of chunks.
-- **Parameters**: `k1=1.2` and `b=0.5` (library defaults are 1.5 and 0.75), tuned on the public datasets (see below).
+- **Parameters**: `k1=1.5` (library default) and `b=0.5` (library default is 0.75), tuned on the public datasets: lowering `b` weakens the penalty BM25 applies to long chunks, which favors the large chunks produced by the AST chunker.
 - **Persistence**: the index and one metadata line per chunk (`file_path` and character range) are saved in `data/processed/`. Chunk texts are not stored; for generation, the text is re-read from the corpus with the character range.
 - **Generation**: the retrieved chunks are concatenated as context, followed by the question and an instruction to answer only from the context. `Qwen/Qwen3-0.6B` runs with its thinking mode disabled and greedy decoding (deterministic), 300 new tokens at most.
 
@@ -125,32 +129,25 @@ Measured on the public datasets (100 docs questions, 99 code questions), and con
 
 | Recall | @1 | @3 | @5 | @10 | Required @5 |
 |---|---|---|---|---|---|
-| docs | 0.520 | 0.740 | **0.810** | 0.860 | 0.80 |
-| code | 0.313 | 0.465 | **0.535** | 0.576 | 0.50 |
+| docs | 0.570 | 0.780 | **0.860** | 0.860 | 0.80 |
+| code | 0.434 | 0.616 | **0.636** | 0.636 | 0.50 |
 
-**Effect of `max_chunk_size`** (recall@5, `k1=1.2`, `b=0.5`):
+**Effect of `max_chunk_size`** (recall@5, `k1=1.5`, `b=0.5`):
 
 | max_chunk_size | chunks | docs | code |
 |---|---|---|---|
-| **2000** | 21 973 | **0.810** | **0.535** |
-| 1500 | 24 974 | 0.770 | 0.505 |
-| 1000 | 30 596 | 0.770 | 0.455 |
-| 500 | 46 874 | 0.710 | 0.424 |
+| **2000** | 21 989 | **0.860** | **0.636** |
+| 1500 | 24 990 | 0.820 | 0.646 |
+| 1000 | 30 620 | 0.820 | 0.616 |
+| 500 | 46 913 | 0.770 | 0.606 |
 
-Smaller chunks lower the recall in every case: the chunks split from a large function or section lose the context that made it match the question.
-
-**Effect of BM25 parameters** (recall@5, chunk size 2000):
-
-| k1 / b | docs | code |
-|---|---|---|
-| 1.5 / 0.75 (defaults) | 0.810 | 0.485 |
-| **1.2 / 0.5** | **0.810** | **0.535** |
+Smaller chunks lower docs recall in every case: the chunks split from a large section lose the context that made it match the question. Code recall is flatter, since the filename and class-name context now carried in every chunk still matches regardless of chunk size.
 
 **System performance**:
 
 | | Measured | Limit |
 |---|---|---|
-| Indexing of the whole corpus | about 5 s | 5 min |
+| Indexing of the whole corpus | about 5-7 s | 5 min |
 | Retrieval, 199 questions | under 1 s | 90 s |
 | Answer generation (CPU) | about 22 s per question | none in the subject |
 
@@ -162,13 +159,13 @@ Smaller chunks lower the recall in every case: the chunks split from a large fun
 - **No overlap between chunks**: simpler, and enough to pass the thresholds.
 - **Separate commands linked by files**: the index is computed once; searching and answering do not need to rebuild it.
 - **Thinking mode disabled in Qwen3**: answers are direct and about ten times faster.
-- **Known limitation**: top-level constants, imports and class docstrings are not indexed. Some code questions target them and are missed.
+- **Filename and class-name context**: the words of the file name, and the class name for a method pulled out of an oversized class, are prepended to the indexed text of a chunk. This gave the biggest recall gain of the project (docs 0.810 → 0.860, code 0.535 → 0.636), since many questions name a file or a class rather than quoting the code itself.
 
 ## Challenges faced
 
 - **Oversized chunks**: 23% of Python units exceeded 2000 characters (one class was 150 000). Recursing into class methods, then raw slicing, fixed it, and no chunk exceeds the limit anymore.
 - **Empty spans in Markdown**: a blank line right before a title produced zero-length chunks (76 of them). Empty ranges are now filtered out.
-- **Code recall just under the threshold (0.485)**: the failing questions showed that the IoU of 0.05 penalizes a large chunk that contains a very small target (93 characters in a 2000-character chunk gives 0.046). Indexing every top-level statement as its own chunk (44 990 chunks) made things worse (docs 0.750, code 0.434), because tiny chunks are favored by BM25's length normalization. Tuning `k1` and `b` fixed it without changing the chunking.
+- **Code recall just under the threshold (0.485)**: the failing questions showed that the IoU of 0.05 penalizes a large chunk that contains a very small target (93 characters in a 2000-character chunk gives 0.046)
 
 ## Resources
 
