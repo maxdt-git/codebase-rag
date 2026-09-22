@@ -11,7 +11,6 @@ def iou(
     """
     Compute the intersection over union of two character range
     """
-    # overlap between the two ranges, 0 if they don't touch at all
     intersection = max(0, min(b1, b2) - max(a1, a2))
     # total length covered by both ranges combined
     union = (b1 - a1) + (b2 - a2) - intersection

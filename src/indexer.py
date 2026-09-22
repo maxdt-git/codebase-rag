@@ -68,7 +68,7 @@ def build_index(
     # turn each chunk text into a list of words for BM25
     corpus_tokens = bm25s.tokenize(texts, stopwords="en")
     # metas is the "corpus": what retrieve() hands back for a match
-    # k1/b tuned empirically to pass the code-questions recall threshold
+    # k1/b tuned to pass the code-questions
     retriever = bm25s.BM25(k1=1.2, b=0.5, corpus=metas)
     retriever.index(corpus_tokens)
 
