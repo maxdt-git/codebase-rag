@@ -2,6 +2,13 @@
 
 # RAG against the machine
 
+**Stack:** Python · BM25 (`bm25s`) · Hugging Face Transformers / PyTorch · Qwen3-0.6B · Pydantic · uv
+
+**Highlights**
+- End-to-end RAG pipeline over a codebase: chunking → BM25 retrieval → grounded LLM answers
+- **Recall@5: 0.86 on docs, 0.64 on code** (subject requires 0.80 / 0.50)
+- Indexes the full corpus in ~6 s; retrieves 199 questions in under 1 s
+
 ## Description
 
 A Retrieval-Augmented Generation (RAG) system that answers questions about a codebase.
