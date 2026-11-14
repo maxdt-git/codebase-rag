@@ -174,8 +174,6 @@ Smaller chunks lower docs recall in every case: the chunks split from a large se
 
 ## Resources
 
-- Robertson and Zaragoza, *The Probabilistic Relevance Framework: BM25 and Beyond* (2009)
-- Lewis et al., *Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks* (2020), <https://arxiv.org/abs/2005.11401>
 - `bm25s` library: <https://github.com/xhluca/bm25s>
 - Python `ast` module: <https://docs.python.org/3/library/ast.html>
 - Qwen3-0.6B model card: <https://huggingface.co/Qwen/Qwen3-0.6B>
