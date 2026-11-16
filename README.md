@@ -1,11 +1,6 @@
-# Codebase RAG
+*This activity has been created as part of the 42 curriculum by mde-nas.*
 
-**Stack:** Python · BM25 (`bm25s`) · Hugging Face Transformers / PyTorch · Qwen3-0.6B · Pydantic · uv
-
-**Highlights**
-- End-to-end RAG pipeline over a codebase: chunking → BM25 retrieval → grounded LLM answers
-- **Recall@5: 0.86 on docs, 0.64 on code** (targets: 0.80 / 0.50)
-- Indexes the full corpus in ~6 s; retrieves 199 questions in under 1 s
+# RAG against the machine
 
 ## Description
 
@@ -50,14 +45,12 @@ make fclean      # also remove .venv, data/processed and data/output
 
 | Command | Options | Effect |
 |---|---|---|
-| `index` | `--max_chunk_size` (1 to 2000, default 2000), `--raw_dir` (default `data/raw`), `--processed_dir` (default `data/processed`) | Index `raw_dir` into `processed_dir` |
-| `search <query>` | `--k`, `--processed_dir` | Print the top-k sources of one query |
-| `search_dataset` | `--dataset_path --k --save_directory --processed_dir` | Search a whole dataset, write a `StudentSearchResults` JSON |
-| `answer <query>` | `--k`, `--processed_dir` | Search, then answer one query |
+| `index` | `--max_chunk_size` (1 to 2000, default 2000) | Index `data/raw/` into `data/processed/` |
+| `search <query>` | `--k` | Print the top-k sources of one query |
+| `search_dataset` | `--dataset_path --k --save_directory` | Search a whole dataset, write a `StudentSearchResults` JSON |
+| `answer <query>` | `--k` | Search, then answer one query |
 | `answer_dataset` | `--student_search_results_path --save_directory` | Answer every question of a search-results file, write a `StudentSearchResultsAndAnswer` JSON |
 | `evaluate` | `--student_search_results_path --dataset_path` | Print recall@k against a ground-truth dataset |
-
-`--raw_dir` should stay a relative path: it is embedded verbatim in every `file_path` written to the index, and the moulinette compares that path as text.
 
 Invalid input (empty query, `k=0`, invalid `k` or `max_chunk_size`, missing file, malformed JSON) prints an `Error: ...` message or `No result found` instead of a traceback.
 
@@ -124,13 +117,13 @@ Result: 1969 files give 21 989 chunks, none longer than 2000 characters.
 
 - **Algorithm**: BM25 (`bm25s` library), one "document" per chunk. Chunk and query texts are lowercased, split into words and stripped of English stop words.
 - **Ranking**: `retrieve` scores every chunk and returns the top-k. Chunks with a score of 0 (no word in common with the question) are dropped, so an empty or nonsensical query returns nothing instead of random chunks. `k` is capped to the number of chunks.
-- **Parameters**: `k1=1.5` (library default) and `b=0.5` (library default is 0.75), tuned on the public datasets: lowering `b` weakens the penalty BM25 applies to long chunks, which favors the large chunks produced by the AST chunker.
+- **Parameters**: `k1=1.2` and `b=0.5` (library defaults are 1.5 and 0.75), tuned on the public datasets (see below).
 - **Persistence**: the index and one metadata line per chunk (`file_path` and character range) are saved in `data/processed/`. Chunk texts are not stored; for generation, the text is re-read from the corpus with the character range.
 - **Generation**: the retrieved chunks are concatenated as context, followed by the question and an instruction to answer only from the context. `Qwen/Qwen3-0.6B` runs with its thinking mode disabled and greedy decoding (deterministic), 300 new tokens at most.
 
 ## Performance analysis
 
-Measured on the public datasets (100 docs questions, 99 code questions), and confirmed by the official moulinette.
+Measured on the datasets (100 docs questions, 99 code questions), and confirmed by the official moulinette.
 
 | Recall | @1 | @3 | @5 | @10 | Required @5 |
 |---|---|---|---|---|---|
@@ -164,13 +157,13 @@ Smaller chunks lower docs recall in every case: the chunks split from a large se
 - **No overlap between chunks**: simpler, and enough to pass the thresholds.
 - **Separate commands linked by files**: the index is computed once; searching and answering do not need to rebuild it.
 - **Thinking mode disabled in Qwen3**: answers are direct and about ten times faster.
-- **Filename and class-name context**: the words of the file name, and the class name for a method pulled out of an oversized class, are prepended to the indexed text of a chunk. This gave the biggest recall gain of the project (docs 0.810 → 0.860, code 0.535 → 0.636), since many questions name a file or a class rather than quoting the code itself.
+- **Known limitation**: top-level constants, imports and class docstrings are not indexed. Some code questions target them and are missed.
 
 ## Challenges faced
 
 - **Oversized chunks**: 23% of Python units exceeded 2000 characters (one class was 150 000). Recursing into class methods, then raw slicing, fixed it, and no chunk exceeds the limit anymore.
 - **Empty spans in Markdown**: a blank line right before a title produced zero-length chunks (76 of them). Empty ranges are now filtered out.
-- **Code recall just under the threshold (0.485)**: the failing questions showed that the IoU of 0.05 penalizes a large chunk that contains a very small target (93 characters in a 2000-character chunk gives 0.046)
+- **Code recall just under the threshold (0.485)**: the failing questions showed that the IoU of 0.05 penalizes a large chunk that contains a very small target (93 characters in a 2000-character chunk gives 0.046).
 
 ## Resources
 
